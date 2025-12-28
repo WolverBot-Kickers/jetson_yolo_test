@@ -1,6 +1,6 @@
-# wbk_vision (ROS2 Foxy)
+# wbk_vision (ROS2 Eloquent)
 
-Minimal USB webcam publisher for Jetson Nano (Ubuntu 18.04, ROS2 Foxy).
+Minimal USB webcam publisher for Jetson Nano (Ubuntu 18.04, ROS2 Eloquent).
 
 ## Build and source
 ```

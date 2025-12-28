@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installation script for YOLO vision stack on Jetson Nano (Ubuntu 18.04 + ROS2 Foxy)
+# Installation script for YOLO vision stack on Jetson Nano (Ubuntu 18.04 + ROS2 Eloquent)
 # This script installs all dependencies needed for wbk_yolo package
 
 set -e  # Exit on error
@@ -68,27 +68,21 @@ sudo apt install -y \
     libcanberra-gtk3-module
 
 echo ""
-echo "Step 3: Installing ROS2 (if not already installed)..."
-if [ "$UBUNTU_VERSION" = "18.04" ]; then
-    echo -e "${YELLOW}Ubuntu 18.04 detected - ROS2 Foxy requires Ubuntu 20.04${NC}"
+echo "Step 3: Installing ROS2 Eloquent (if not already installed)..."
+# Default to Eloquent for Ubuntu 18.04 (officially supported)
+ROS_DISTRO="eloquent"
+
+if [ "$UBUNTU_VERSION" != "18.04" ]; then
+    echo -e "${YELLOW}Ubuntu ${UBUNTU_VERSION} detected${NC}"
     echo "Options:"
-    echo "  1. Use ROS2 Eloquent (officially supports Ubuntu 18.04)"
-    echo "  2. Build ROS2 Foxy from source (time-consuming)"
-    echo "  3. Upgrade to Ubuntu 20.04 (recommended for Foxy)"
+    echo "  1. Use ROS2 Eloquent (recommended for compatibility)"
+    echo "  2. Use ROS2 Foxy (requires Ubuntu 20.04+)"
     echo ""
-    read -p "Install ROS2 Eloquent instead? (y/n) " -n 1 -r
+    read -p "Use ROS2 Eloquent? (y/n) " -n 1 -r
     echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        ROS_VERSION="eloquent"
-        ROS_DISTRO="eloquent"
-    else
-        echo -e "${YELLOW}Attempting to install Foxy on Ubuntu 18.04 (may fail)${NC}"
-        ROS_VERSION="foxy"
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         ROS_DISTRO="foxy"
     fi
-else
-    ROS_VERSION="foxy"
-    ROS_DISTRO="foxy"
 fi
 
 if ! dpkg -l | grep -q "ros-${ROS_DISTRO}-desktop"; then
@@ -102,13 +96,7 @@ if ! dpkg -l | grep -q "ros-${ROS_DISTRO}-desktop"; then
     # Add ROS2 repository
     sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
     
-    if [ "$UBUNTU_VERSION" = "18.04" ] && [ "$ROS_DISTRO" = "foxy" ]; then
-        # For Foxy on 18.04, use 20.04 repository (may work)
-        echo -e "${YELLOW}Using Ubuntu 20.04 repository for Foxy on 18.04${NC}"
-        sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu focal main" > /etc/apt/sources.list.d/ros2-latest.list'
-    else
-        sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
-    fi
+    sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
     
     sudo apt update
     
@@ -118,9 +106,8 @@ if ! dpkg -l | grep -q "ros-${ROS_DISTRO}-desktop"; then
     else
         echo -e "${RED}Failed to install ros-${ROS_DISTRO}-desktop${NC}"
         echo -e "${YELLOW}You may need to:${NC}"
-        echo "  1. Build ROS2 from source (see: https://docs.ros.org/en/foxy/Installation/Ubuntu-Development-Setup.html)"
-        echo "  2. Use ROS2 Eloquent instead (supports Ubuntu 18.04)"
-        echo "  3. Upgrade to Ubuntu 20.04"
+        echo "  1. Build ROS2 from source (see: https://docs.ros.org/en/${ROS_DISTRO}/Installation/Ubuntu-Development-Setup.html)"
+        echo "  2. Check your Ubuntu version compatibility"
         echo ""
         read -p "Continue with manual ROS2 installation? (y/n) " -n 1 -r
         echo
@@ -137,10 +124,10 @@ if ! dpkg -l | grep -q "ros-${ROS_DISTRO}-desktop"; then
 else
     echo -e "${GREEN}ROS2 already installed${NC}"
     # Detect which version is installed
-    if dpkg -l | grep -q ros-foxy-desktop; then
-        ROS_DISTRO="foxy"
-    elif dpkg -l | grep -q ros-eloquent-desktop; then
+    if dpkg -l | grep -q ros-eloquent-desktop; then
         ROS_DISTRO="eloquent"
+    elif dpkg -l | grep -q ros-foxy-desktop; then
+        ROS_DISTRO="foxy"
     fi
 fi
 

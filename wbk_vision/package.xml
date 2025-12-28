@@ -3,7 +3,7 @@
 <package format="3">
   <name>wbk_vision</name>
   <version>0.1.0</version>
-  <description>USB camera publisher for ROS2 Foxy (image + camera_info).</description>
+  <description>USB camera publisher for ROS2 Eloquent (image + camera_info).</description>
 
   <maintainer email="team@wolverbotkickers.com">Wolverbot Kickers Team</maintainer>
   <license>Apache-2.0</license>
