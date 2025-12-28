@@ -1,9 +1,12 @@
-# Model files (too large for git)
-*.pt
-*.engine
-*.onnx
+# Model files (comment out if you want to commit specific models)
+# *.pt
+# *.engine
+# *.onnx
 *.weights
 *.pth
+# Allow train200epochs_best.pt and train200epochs_best.engine
+!wbk_yolo/train200epochs_best.pt
+!wbk_yolo/train200epochs_best.engine
 
 # Python cache
 __pycache__/
@@ -27,4 +30,3 @@ log/
 # OS files
 .DS_Store
 Thumbs.db
-
