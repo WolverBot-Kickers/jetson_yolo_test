@@ -46,7 +46,40 @@ sudo apt update
 sudo apt upgrade -y
 
 echo ""
-echo "Step 2: Installing system dependencies..."
+echo "Step 2: Installing Python and pip..."
+# Check if Python 3 is installed
+if ! command -v python3 &> /dev/null; then
+    echo "Installing Python 3..."
+    sudo apt install -y python3
+else
+    PYTHON_VER=$(python3 --version)
+    echo -e "${GREEN}Python found: $PYTHON_VER${NC}"
+fi
+
+# Check if pip is installed
+if ! command -v pip3 &> /dev/null && ! python3 -m pip --version &> /dev/null; then
+    echo "Installing pip..."
+    sudo apt install -y python3-pip
+    # Also install ensurepip for better pip management
+    sudo apt install -y python3-venv python3-distutils
+else
+    echo -e "${GREEN}pip found${NC}"
+    python3 -m pip --version
+fi
+
+# Verify Python and pip are working
+if ! python3 -c "import sys; print(f'Python {sys.version}')" 2>/dev/null; then
+    echo -e "${RED}Python 3 is not working correctly${NC}"
+    exit 1
+fi
+
+if ! python3 -m pip --version &> /dev/null; then
+    echo -e "${RED}pip is not working correctly${NC}"
+    exit 1
+fi
+
+echo ""
+echo "Step 3: Installing system dependencies..."
 sudo apt install -y \
     curl \
     gnupg2 \
@@ -55,6 +88,9 @@ sudo apt install -y \
     python3-pip \
     python3-dev \
     python3-setuptools \
+    python3-venv \
+    python3-distutils \
+    build-essential \
     v4l-utils \
     libv4l-dev \
     libjpeg-dev \
@@ -65,10 +101,12 @@ sudo apt install -y \
     libswscale-dev \
     libgtk-3-dev \
     libcanberra-gtk-module \
-    libcanberra-gtk3-module
+    libcanberra-gtk3-module \
+    libffi-dev \
+    libssl-dev
 
 echo ""
-echo "Step 3: Installing ROS2 Eloquent (if not already installed)..."
+echo "Step 4: Installing ROS2 Eloquent (if not already installed)..."
 # Default to Eloquent for Ubuntu 18.04 (officially supported)
 ROS_DISTRO="eloquent"
 
@@ -132,7 +170,7 @@ else
 fi
 
 echo ""
-echo "Step 4: Installing ROS2 dependencies..."
+echo "Step 5: Installing ROS2 dependencies..."
 ROS_SETUP="/opt/ros/${ROS_DISTRO}/setup.bash"
 source "$ROS_SETUP" 2>/dev/null || {
     echo -e "${RED}Failed to source ROS2. Please install ROS2 first.${NC}"
@@ -160,18 +198,34 @@ else
 fi
 
 echo ""
-echo "Step 5: Installing Python dependencies..."
-# Upgrade pip
+echo "Step 6: Installing Python dependencies..."
+# Upgrade pip to latest version
+echo "Upgrading pip, setuptools, and wheel..."
 python3 -m pip install --upgrade pip setuptools wheel
 
+# Verify pip upgrade worked
+if ! python3 -m pip --version &> /dev/null; then
+    echo -e "${RED}pip upgrade failed. Trying alternative method...${NC}"
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    python3 get-pip.py --user
+    rm get-pip.py
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
 # Install NumPy (if not already installed via apt)
+echo "Installing NumPy..."
 python3 -m pip install --upgrade numpy
 
 # Install PyYAML
+echo "Installing PyYAML..."
 python3 -m pip install --upgrade pyyaml
 
+# Verify installations
+python3 -c "import numpy; print(f'✓ NumPy {numpy.__version__}')" || echo -e "${YELLOW}NumPy import failed${NC}"
+python3 -c "import yaml; print('✓ PyYAML installed')" || echo -e "${YELLOW}PyYAML import failed${NC}"
+
 echo ""
-echo "Step 6: Installing PyTorch for Jetson..."
+echo "Step 7: Installing PyTorch for Jetson..."
 # Check for existing PyTorch
 if python3 -c "import torch" 2>/dev/null; then
     echo -e "${GREEN}PyTorch already installed${NC}"
@@ -206,24 +260,87 @@ else
 fi
 
 echo ""
-echo "Step 7: Installing Ultralytics (YOLO)..."
-# Install ultralytics and dependencies
+echo "Step 8: Installing Ultralytics (YOLO)..."
+# Check Python version
+PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+echo "Python version: $PYTHON_VERSION"
+
+# Install ultralytics - try different methods for compatibility
+echo "Installing ultralytics and dependencies..."
+
+# Install dependencies first (allow failures)
+set +e  # Temporarily disable exit on error
 python3 -m pip install --upgrade \
-    ultralytics \
     pillow \
     requests \
     tqdm \
     pandas \
-    seaborn
-
-echo ""
-echo "Step 8: Installing additional CV dependencies..."
-python3 -m pip install --upgrade \
+    seaborn \
     scipy \
-    matplotlib
+    matplotlib 2>&1 | grep -v "already satisfied" || echo -e "${YELLOW}Some dependencies may have issues, continuing...${NC}"
+set -e  # Re-enable exit on error
+
+# Try to install ultralytics - handle ARM64/Ubuntu 18.04 compatibility
+ULTRA_INSTALLED=false
+set +e  # Temporarily disable exit on error for ultralytics install attempts
+
+# Method 1: Try standard pip install
+echo "Attempting standard ultralytics installation..."
+if python3 -m pip install --upgrade ultralytics --no-cache-dir 2>&1 | tee /tmp/ultra_install.log; then
+    ULTRA_INSTALLED=true
+    echo -e "${GREEN}Ultralytics installed via standard method${NC}"
+else
+    echo -e "${YELLOW}Standard installation failed, trying alternative methods...${NC}"
+    
+    # Method 2: Try installing from source (build from source for ARM64)
+    echo "Attempting to install from source (this may take 10-20 minutes)..."
+    echo -e "${YELLOW}This will compile from source - be patient...${NC}"
+    if python3 -m pip install --upgrade --no-binary :all: ultralytics --no-cache-dir 2>&1 | tee -a /tmp/ultra_install.log; then
+        ULTRA_INSTALLED=true
+        echo -e "${GREEN}Ultralytics installed from source${NC}"
+    else
+        # Method 3: Try installing from GitHub directly
+        echo "Attempting to install from GitHub repository..."
+        if python3 -m pip install --upgrade git+https://github.com/ultralytics/ultralytics.git --no-cache-dir 2>&1 | tee -a /tmp/ultra_install.log; then
+            ULTRA_INSTALLED=true
+            echo -e "${GREEN}Ultralytics installed from GitHub${NC}"
+        else
+            echo -e "${RED}All ultralytics installation methods failed${NC}"
+            echo -e "${YELLOW}Error details saved to /tmp/ultra_install.log${NC}"
+        fi
+    fi
+fi
+set -e  # Re-enable exit on error
 
 echo ""
-echo "Step 9: Setting up camera permissions..."
+echo "Step 9: Verifying Ultralytics installation..."
+if python3 -c "import ultralytics; print(f'Ultralytics version: {ultralytics.__version__}')" 2>/dev/null; then
+    echo -e "${GREEN}✓ Ultralytics installed successfully${NC}"
+    ULTRA_INSTALLED=true
+else
+    echo -e "${RED}✗ Ultralytics installation failed or incomplete${NC}"
+    echo ""
+    echo -e "${YELLOW}Manual installation options:${NC}"
+    echo "  1. Install from source (recommended for ARM64):"
+    echo "     pip3 install --no-binary :all: ultralytics"
+    echo ""
+    echo "  2. Install from GitHub:"
+    echo "     pip3 install git+https://github.com/ultralytics/ultralytics.git"
+    echo ""
+    echo "  3. Check error log:"
+    echo "     cat /tmp/ultra_install.log"
+    echo ""
+    read -p "Continue with installation? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Installation stopped. Please install ultralytics manually and rerun."
+        exit 1
+    fi
+    ULTRA_INSTALLED=false
+fi
+
+echo ""
+echo "Step 10: Setting up camera permissions..."
 # Add user to video group if not already
 if ! groups $USER | grep -q video; then
     sudo usermod -a -G video $USER
@@ -234,7 +351,7 @@ else
 fi
 
 echo ""
-echo "Step 10: Configuring Jetson for optimal performance..."
+echo "Step 11: Configuring Jetson for optimal performance..."
 # Set max power mode
 if command -v nvpmodel &> /dev/null; then
     echo "Setting Jetson to max performance mode..."
@@ -251,7 +368,7 @@ if [ "$SWAP_SIZE" -lt 4096 ]; then
 fi
 
 echo ""
-echo "Step 11: Verifying installations..."
+echo "Step 12: Verifying installations..."
 echo "Checking Python packages..."
 python3 << EOF
 import sys
