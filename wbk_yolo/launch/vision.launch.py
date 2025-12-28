@@ -24,8 +24,8 @@ def generate_launch_description():
     # Declare launch arguments
     model_path_arg = DeclareLaunchArgument(
         'model_path',
-        default_value='yolo11n.engine',
-        description='Path to YOLO model file (.engine, .pt, or .onnx)'
+        default_value='train200epochs_best.engine',
+        description='Path to YOLO model file (.engine for TensorRT, .pt, or .onnx)'
     )
     
     imgsz_arg = DeclareLaunchArgument(

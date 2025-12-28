@@ -15,8 +15,9 @@ echo "YOLO Detection Node Launcher"
 echo "=========================================="
 echo ""
 
-# Get model path
-MODEL_PATH="${1:-yolo11n.engine}"
+# Get model path (default to TensorRT engine for best performance)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODEL_PATH="${1:-$SCRIPT_DIR/train200epochs_best.engine}"
 
 # Source ROS2
 if [ -f /opt/ros/eloquent/setup.bash ]; then
@@ -71,17 +72,34 @@ if pgrep -f "yolo_node" > /dev/null; then
 fi
 
 # Check if model file exists
-if [ ! -f "$MODEL_PATH" ] && [ ! -f "$HOME/$MODEL_PATH" ] && [ ! -f "$HOME/ros2_ws/$MODEL_PATH" ]; then
-    echo -e "${YELLOW}Model file not found: $MODEL_PATH${NC}"
-    echo ""
-    echo "Usage: $0 [model_path]"
-    echo "Example: $0 yolo11n.engine"
-    echo "Or: $0 /path/to/model.pt"
-    echo ""
-    read -p "Continue anyway? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
+if [ ! -f "$MODEL_PATH" ]; then
+    # Try .engine first, then .pt
+    ENGINE_PATH="${MODEL_PATH%.*}.engine"
+    PT_PATH="${MODEL_PATH%.*}.pt"
+    
+    if [ -f "$SCRIPT_DIR/train200epochs_best.engine" ] && [ "$MODEL_PATH" = "$SCRIPT_DIR/train200epochs_best.engine" ]; then
+        MODEL_PATH="$SCRIPT_DIR/train200epochs_best.engine"
+    elif [ -f "$SCRIPT_DIR/train200epochs_best.pt" ] && [ "$MODEL_PATH" = "$SCRIPT_DIR/train200epochs_best.engine" ]; then
+        echo -e "${YELLOW}Engine file not found, but .pt file exists${NC}"
+        echo "Run: ./convert_to_engine.sh to convert for better performance"
+        MODEL_PATH="$SCRIPT_DIR/train200epochs_best.pt"
+    elif [ -f "$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.engine" ]; then
+        MODEL_PATH="$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.engine"
+    elif [ -f "$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.pt" ]; then
+        echo -e "${YELLOW}Using .pt file. Convert to .engine for better performance${NC}"
+        MODEL_PATH="$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.pt"
+    elif [ ! -f "$MODEL_PATH" ]; then
+        echo -e "${YELLOW}Model file not found: $MODEL_PATH${NC}"
+        echo ""
+        echo "Usage: $0 [model_path]"
+        echo "Example: $0 train200epochs_best.engine"
+        echo "Or: $0 /path/to/model.pt (will auto-convert if needed)"
+        echo ""
+        read -p "Continue anyway? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
     fi
 fi
 

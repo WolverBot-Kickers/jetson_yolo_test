@@ -1,0 +1,30 @@
+# Model files (too large for git)
+*.pt
+*.engine
+*.onnx
+*.weights
+*.pth
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ROS2 build files
+build/
+install/
+log/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+

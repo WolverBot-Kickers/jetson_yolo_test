@@ -46,13 +46,27 @@ if [ -z "$ROS_DISTRO" ]; then
     fi
 fi
 
-# Get model path
-MODEL_PATH="${1:-yolo11n.engine}"
-if [ ! -f "$MODEL_PATH" ] && [ ! -f "~/ros2_ws/$MODEL_PATH" ]; then
-    echo -e "${YELLOW}Model file not found: $MODEL_PATH${NC}"
-    echo "Usage: $0 [model_path]"
-    echo "Example: $0 yolo11n.engine"
-    echo "Or: $0 /path/to/model.pt"
+# Get model path (default to TensorRT engine for best performance)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MODEL_PATH="${1:-$SCRIPT_DIR/train200epochs_best.engine}"
+
+if [ ! -f "$MODEL_PATH" ]; then
+    # Try .engine first, then .pt
+    if [ -f "$SCRIPT_DIR/train200epochs_best.engine" ]; then
+        MODEL_PATH="$SCRIPT_DIR/train200epochs_best.engine"
+    elif [ -f "$SCRIPT_DIR/train200epochs_best.pt" ]; then
+        echo -e "${YELLOW}Engine file not found, using .pt file${NC}"
+        echo "Run: ./convert_to_engine.sh for better performance"
+        MODEL_PATH="$SCRIPT_DIR/train200epochs_best.pt"
+    elif [ -f "$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.engine" ]; then
+        MODEL_PATH="$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.engine"
+    elif [ -f "$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.pt" ]; then
+        MODEL_PATH="$HOME/ros2_ws/src/wbk_yolo/train200epochs_best.pt"
+    elif [ ! -f "$MODEL_PATH" ]; then
+        echo -e "${YELLOW}Model file not found: $MODEL_PATH${NC}"
+        echo "Usage: $0 [model_path]"
+        echo "Example: $0 train200epochs_best.engine"
+        echo "Or: $0 /path/to/model.pt"
     read -p "Continue anyway? (y/n) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then

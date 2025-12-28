@@ -5,7 +5,7 @@
 yolo_node:
   ros__parameters:
     # Model configuration
-    model_path: "yolo11n.engine"  # Path to YOLO model (.engine, .pt, or .onnx)
+    model_path: "train200epochs_best.engine"  # Path to YOLO model (.engine for TensorRT, .pt, or .onnx)
     imgsz: 416                    # Input image size (416 for Nano, 640 for Xavier/Orin)
     
     # Detection thresholds
