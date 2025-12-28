@@ -34,8 +34,56 @@ echo ""
 
 # Check if ultralytics is installed
 if ! python3 -c "import ultralytics" 2>/dev/null; then
-    echo -e "${RED}ultralytics not found. Installing...${NC}"
-    pip3 install ultralytics
+    echo -e "${RED}ultralytics not found. Attempting installation...${NC}"
+    echo ""
+    
+    # Try to use the manual installation script if it exists
+    MANUAL_SCRIPT="$(dirname "$0")/install_ultralytics_manual.sh"
+    if [ -f "$MANUAL_SCRIPT" ]; then
+        echo "Using manual installation script (installs from source)..."
+        chmod +x "$MANUAL_SCRIPT"
+        if "$MANUAL_SCRIPT"; then
+            echo -e "${GREEN}✓ Ultralytics installed successfully from source!${NC}"
+        else
+            echo -e "${RED}Failed to install ultralytics via manual script${NC}"
+            echo ""
+            echo "Please install ultralytics manually first:"
+            echo "  ./install_ultralytics_manual.sh"
+            echo ""
+            echo "Or try direct source installation:"
+            echo "  pip3 install --no-binary :all: ultralytics --no-cache-dir"
+            exit 1
+        fi
+    else
+        # Fallback: try installation methods directly
+        echo "Attempting to install ultralytics..."
+        set +e  # Don't exit on error
+        
+        # Method 1: Install from source (most reliable for ARM64/Jetson)
+        echo "Installing from source (recommended for ARM64/Jetson)..."
+        echo -e "${YELLOW}This will compile from source and may take 10-20 minutes...${NC}"
+        if python3 -m pip install --no-binary :all: ultralytics --no-cache-dir 2>&1; then
+            echo -e "${GREEN}✓ Ultralytics installed from source!${NC}"
+        elif python3 -m pip install git+https://github.com/ultralytics/ultralytics.git --no-cache-dir 2>&1; then
+            echo -e "${GREEN}✓ Ultralytics installed from GitHub!${NC}"
+        else
+            echo -e "${RED}Failed to install ultralytics${NC}"
+            echo ""
+            echo "Please install ultralytics manually:"
+            echo "  pip3 install --no-binary :all: ultralytics --no-cache-dir"
+            echo ""
+            echo "Or run: ./install_ultralytics_manual.sh"
+            exit 1
+        fi
+        set -e
+    fi
+    
+    # Verify installation
+    if ! python3 -c "import ultralytics" 2>/dev/null; then
+        echo -e "${RED}Ultralytics installation verification failed${NC}"
+        echo "Please install manually and try again."
+        exit 1
+    fi
 fi
 
 # Check if TensorRT is available
@@ -44,7 +92,20 @@ if ! python3 -c "import tensorrt" 2>/dev/null; then
     echo "Attempting conversion anyway (ultralytics will handle it)..."
 fi
 
-echo -e "${GREEN}Starting conversion...${NC}"
+# Final check that ultralytics is available
+if ! python3 -c "import ultralytics" 2>/dev/null; then
+    echo -e "${RED}ERROR: Ultralytics is still not available after installation attempt${NC}"
+    echo ""
+    echo "Please install ultralytics manually:"
+    echo "  cd $(dirname "$0")"
+    echo "  ./install_ultralytics_manual.sh"
+    echo ""
+    echo "Or:"
+    echo "  pip3 install --no-binary :all: ultralytics --no-cache-dir"
+    exit 1
+fi
+
+echo -e "${GREEN}Ultralytics is available. Starting conversion...${NC}"
 echo "This may take several minutes..."
 echo ""
 

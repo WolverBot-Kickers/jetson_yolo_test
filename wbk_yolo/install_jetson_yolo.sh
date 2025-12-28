@@ -284,29 +284,35 @@ set -e  # Re-enable exit on error
 ULTRA_INSTALLED=false
 set +e  # Temporarily disable exit on error for ultralytics install attempts
 
-# Method 1: Try standard pip install
-echo "Attempting standard ultralytics installation..."
-if python3 -m pip install --upgrade ultralytics --no-cache-dir 2>&1 | tee /tmp/ultra_install.log; then
+# For ARM64/Jetson, install from source first (most reliable)
+echo "Installing ultralytics from source (recommended for ARM64/Jetson)..."
+echo -e "${YELLOW}This will compile from source and may take 10-20 minutes...${NC}"
+echo "Please be patient - this is necessary for ARM64 compatibility."
+echo ""
+
+if python3 -m pip install --upgrade --no-binary :all: ultralytics --no-cache-dir 2>&1 | tee /tmp/ultra_install.log; then
     ULTRA_INSTALLED=true
-    echo -e "${GREEN}Ultralytics installed via standard method${NC}"
+    echo -e "${GREEN}✓ Ultralytics installed from source successfully!${NC}"
 else
-    echo -e "${YELLOW}Standard installation failed, trying alternative methods...${NC}"
+    echo -e "${YELLOW}Source installation failed, trying alternative methods...${NC}"
     
-    # Method 2: Try installing from source (build from source for ARM64)
-    echo "Attempting to install from source (this may take 10-20 minutes)..."
-    echo -e "${YELLOW}This will compile from source - be patient...${NC}"
-    if python3 -m pip install --upgrade --no-binary :all: ultralytics --no-cache-dir 2>&1 | tee -a /tmp/ultra_install.log; then
+    # Method 2: Try installing from GitHub directly
+    echo "Attempting to install from GitHub repository..."
+    if python3 -m pip install --upgrade git+https://github.com/ultralytics/ultralytics.git --no-cache-dir 2>&1 | tee -a /tmp/ultra_install.log; then
         ULTRA_INSTALLED=true
-        echo -e "${GREEN}Ultralytics installed from source${NC}"
+        echo -e "${GREEN}✓ Ultralytics installed from GitHub${NC}"
     else
-        # Method 3: Try installing from GitHub directly
-        echo "Attempting to install from GitHub repository..."
-        if python3 -m pip install --upgrade git+https://github.com/ultralytics/ultralytics.git --no-cache-dir 2>&1 | tee -a /tmp/ultra_install.log; then
+        # Method 3: Try standard pip install (may not work on ARM64)
+        echo "Attempting standard pip installation (may fail on ARM64)..."
+        if python3 -m pip install --upgrade ultralytics --no-cache-dir 2>&1 | tee -a /tmp/ultra_install.log; then
             ULTRA_INSTALLED=true
-            echo -e "${GREEN}Ultralytics installed from GitHub${NC}"
+            echo -e "${GREEN}✓ Ultralytics installed via standard method${NC}"
         else
             echo -e "${RED}All ultralytics installation methods failed${NC}"
             echo -e "${YELLOW}Error details saved to /tmp/ultra_install.log${NC}"
+            echo ""
+            echo "You can try the manual installation script:"
+            echo "  ./install_ultralytics_manual.sh"
         fi
     fi
 fi
@@ -314,15 +320,15 @@ set -e  # Re-enable exit on error
 
 echo ""
 echo "Step 9: Verifying Ultralytics installation..."
-ULTRA_INSTALLED=false
 
 # Try multiple ways to verify
 if python3 -c "import ultralytics; print(f'Ultralytics version: {ultralytics.__version__}')" 2>/dev/null; then
+    echo -e "${GREEN}✓ Ultralytics installed successfully!${NC}"
+    python3 -c "import ultralytics; print(f'  Version: {ultralytics.__version__}')" 2>/dev/null
     ULTRA_INSTALLED=true
-    echo -e "${GREEN}✓ Ultralytics installed successfully${NC}"
 elif python3 -c "import ultralytics" 2>/dev/null; then
+    echo -e "${GREEN}✓ Ultralytics installed and importable!${NC}"
     ULTRA_INSTALLED=true
-    echo -e "${GREEN}✓ Ultralytics installed (version check failed but import works)${NC}"
 else
     echo -e "${RED}✗ Ultralytics installation failed or incomplete${NC}"
     echo ""
