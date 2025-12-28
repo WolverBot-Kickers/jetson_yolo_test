@@ -68,9 +68,31 @@ sudo apt install -y \
     libcanberra-gtk3-module
 
 echo ""
-echo "Step 3: Installing ROS2 Foxy (if not already installed)..."
-if ! dpkg -l | grep -q ros-foxy-desktop; then
-    echo "ROS2 Foxy not found. Installing..."
+echo "Step 3: Installing ROS2 (if not already installed)..."
+if [ "$UBUNTU_VERSION" = "18.04" ]; then
+    echo -e "${YELLOW}Ubuntu 18.04 detected - ROS2 Foxy requires Ubuntu 20.04${NC}"
+    echo "Options:"
+    echo "  1. Use ROS2 Eloquent (officially supports Ubuntu 18.04)"
+    echo "  2. Build ROS2 Foxy from source (time-consuming)"
+    echo "  3. Upgrade to Ubuntu 20.04 (recommended for Foxy)"
+    echo ""
+    read -p "Install ROS2 Eloquent instead? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        ROS_VERSION="eloquent"
+        ROS_DISTRO="eloquent"
+    else
+        echo -e "${YELLOW}Attempting to install Foxy on Ubuntu 18.04 (may fail)${NC}"
+        ROS_VERSION="foxy"
+        ROS_DISTRO="foxy"
+    fi
+else
+    ROS_VERSION="foxy"
+    ROS_DISTRO="foxy"
+fi
+
+if ! dpkg -l | grep -q "ros-${ROS_DISTRO}-desktop"; then
+    echo "ROS2 ${ROS_DISTRO^} not found. Installing..."
     
     # Set locale
     sudo locale-gen en_US en_US.UTF-8
@@ -79,43 +101,75 @@ if ! dpkg -l | grep -q ros-foxy-desktop; then
     
     # Add ROS2 repository
     sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add -
-    sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
     
-    sudo apt update
-    sudo apt install -y ros-foxy-desktop python3-argcomplete
-    
-    # Source ROS2 in current shell
-    if ! grep -q "source /opt/ros/foxy/setup.bash" ~/.bashrc; then
-        echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
+    if [ "$UBUNTU_VERSION" = "18.04" ] && [ "$ROS_DISTRO" = "foxy" ]; then
+        # For Foxy on 18.04, use 20.04 repository (may work)
+        echo -e "${YELLOW}Using Ubuntu 20.04 repository for Foxy on 18.04${NC}"
+        sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu focal main" > /etc/apt/sources.list.d/ros2-latest.list'
+    else
+        sudo sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
     fi
     
-    echo -e "${GREEN}ROS2 Foxy installed successfully${NC}"
+    sudo apt update
+    
+    # Try to install
+    if sudo apt install -y "ros-${ROS_DISTRO}-desktop" python3-argcomplete 2>/dev/null; then
+        echo -e "${GREEN}ROS2 ${ROS_DISTRO^} installed successfully${NC}"
+    else
+        echo -e "${RED}Failed to install ros-${ROS_DISTRO}-desktop${NC}"
+        echo -e "${YELLOW}You may need to:${NC}"
+        echo "  1. Build ROS2 from source (see: https://docs.ros.org/en/foxy/Installation/Ubuntu-Development-Setup.html)"
+        echo "  2. Use ROS2 Eloquent instead (supports Ubuntu 18.04)"
+        echo "  3. Upgrade to Ubuntu 20.04"
+        echo ""
+        read -p "Continue with manual ROS2 installation? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    fi
+    
+    # Source ROS2 in current shell
+    ROS_SETUP="/opt/ros/${ROS_DISTRO}/setup.bash"
+    if ! grep -q "source $ROS_SETUP" ~/.bashrc; then
+        echo "source $ROS_SETUP" >> ~/.bashrc
+    fi
 else
-    echo -e "${GREEN}ROS2 Foxy already installed${NC}"
+    echo -e "${GREEN}ROS2 already installed${NC}"
+    # Detect which version is installed
+    if dpkg -l | grep -q ros-foxy-desktop; then
+        ROS_DISTRO="foxy"
+    elif dpkg -l | grep -q ros-eloquent-desktop; then
+        ROS_DISTRO="eloquent"
+    fi
 fi
 
 echo ""
 echo "Step 4: Installing ROS2 dependencies..."
-source /opt/ros/foxy/setup.bash 2>/dev/null || true
+ROS_SETUP="/opt/ros/${ROS_DISTRO}/setup.bash"
+source "$ROS_SETUP" 2>/dev/null || {
+    echo -e "${RED}Failed to source ROS2. Please install ROS2 first.${NC}"
+    exit 1
+}
 
 sudo apt install -y \
-    ros-foxy-rclpy \
-    ros-foxy-sensor-msgs \
-    ros-foxy-std-msgs \
-    ros-foxy-geometry-msgs \
-    ros-foxy-cv-bridge \
-    ros-foxy-image-transport \
-    ros-foxy-camera-calibration \
+    "ros-${ROS_DISTRO}-rclpy" \
+    "ros-${ROS_DISTRO}-sensor-msgs" \
+    "ros-${ROS_DISTRO}-std-msgs" \
+    "ros-${ROS_DISTRO}-geometry-msgs" \
+    "ros-${ROS_DISTRO}-cv-bridge" \
+    "ros-${ROS_DISTRO}-image-transport" \
+    "ros-${ROS_DISTRO}-camera-calibration" \
     python3-opencv \
     python3-numpy \
     python3-yaml
 
-# Try to install vision_msgs (may not be available in Foxy)
-if apt-cache search ros-foxy-vision-msgs | grep -q vision-msgs; then
-    sudo apt install -y ros-foxy-vision-msgs || true
+# Try to install vision_msgs (may not be available)
+if apt-cache search "ros-${ROS_DISTRO}-vision-msgs" 2>/dev/null | grep -q vision-msgs; then
+    sudo apt install -y "ros-${ROS_DISTRO}-vision-msgs" || true
     echo -e "${GREEN}vision_msgs installed${NC}"
 else
-    echo -e "${YELLOW}vision_msgs not available in Foxy (will use custom messages)${NC}"
+    echo -e "${YELLOW}vision_msgs not available (will use custom messages)${NC}"
 fi
 
 echo ""
@@ -256,7 +310,8 @@ fi
 
 echo ""
 echo "Checking ROS2 packages..."
-source /opt/ros/foxy/setup.bash 2>/dev/null || true
+ROS_SETUP="/opt/ros/${ROS_DISTRO}/setup.bash"
+source "$ROS_SETUP" 2>/dev/null || true
 ros2 pkg list | grep -E "(rclpy|sensor_msgs|cv_bridge|image_transport)" || echo -e "${YELLOW}Some ROS2 packages may not be listed${NC}"
 
 echo ""
@@ -266,16 +321,17 @@ echo "=========================================="
 echo ""
 echo "Next steps:"
 echo "1. Log out and back in (or run: newgrp video)"
-echo "2. Source ROS2: source /opt/ros/foxy/setup.bash"
+echo "2. Source ROS2: source /opt/ros/${ROS_DISTRO}/setup.bash"
 echo "3. Build your workspace:"
 echo "   cd ~/ros2_ws"
-echo "   colcon build --packages-select wbk_yolo --symlink-install"
+echo "   colcon build --packages-select wbk_vision wbk_yolo --symlink-install"
 echo "   source install/setup.bash"
 echo "4. Test camera:"
 echo "   ros2 run wbk_vision usb_camera_node"
 echo "5. Run YOLO node:"
-echo "   ros2 launch wbk_yolo vision.launch.py"
+echo "   ros2 launch wbk_yolo vision.launch.py model_path:=yolo11n.engine"
 echo ""
+echo -e "${YELLOW}Note: Using ROS2 ${ROS_DISTRO^}${NC}"
 echo "For troubleshooting, see JETSON_DEPENDENCIES.md"
 echo ""
 
