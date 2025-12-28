@@ -314,29 +314,66 @@ set -e  # Re-enable exit on error
 
 echo ""
 echo "Step 9: Verifying Ultralytics installation..."
+ULTRA_INSTALLED=false
+
+# Try multiple ways to verify
 if python3 -c "import ultralytics; print(f'Ultralytics version: {ultralytics.__version__}')" 2>/dev/null; then
-    echo -e "${GREEN}✓ Ultralytics installed successfully${NC}"
     ULTRA_INSTALLED=true
+    echo -e "${GREEN}✓ Ultralytics installed successfully${NC}"
+elif python3 -c "import ultralytics" 2>/dev/null; then
+    ULTRA_INSTALLED=true
+    echo -e "${GREEN}✓ Ultralytics installed (version check failed but import works)${NC}"
 else
     echo -e "${RED}✗ Ultralytics installation failed or incomplete${NC}"
     echo ""
-    echo -e "${YELLOW}Manual installation options:${NC}"
-    echo "  1. Install from source (recommended for ARM64):"
-    echo "     pip3 install --no-binary :all: ultralytics"
+    echo "Checking what went wrong..."
+    
+    # Check if it's a path issue
+    PYTHON_PATH=$(python3 -c "import sys; print(sys.path)" 2>/dev/null || echo "")
+    echo "Python path: $PYTHON_PATH"
+    
+    # Check pip list
     echo ""
-    echo "  2. Install from GitHub:"
-    echo "     pip3 install git+https://github.com/ultralytics/ultralytics.git"
+    echo "Checking if ultralytics is in pip list..."
+    python3 -m pip list | grep -i ultralytics || echo "Not found in pip list"
+    
     echo ""
-    echo "  3. Check error log:"
-    echo "     cat /tmp/ultra_install.log"
-    echo ""
-    read -p "Continue with installation? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Installation stopped. Please install ultralytics manually and rerun."
-        exit 1
+    echo -e "${YELLOW}Attempting manual installation with helper script...${NC}"
+    echo "Running install_ultralytics_manual.sh..."
+    
+    if [ -f "$(dirname "$0")/install_ultralytics_manual.sh" ]; then
+        chmod +x "$(dirname "$0")/install_ultralytics_manual.sh"
+        if "$(dirname "$0")/install_ultralytics_manual.sh"; then
+            ULTRA_INSTALLED=true
+            echo -e "${GREEN}✓ Ultralytics installed via manual script!${NC}"
+        fi
     fi
-    ULTRA_INSTALLED=false
+    
+    if [ "$ULTRA_INSTALLED" = false ]; then
+        echo ""
+        echo -e "${RED}Ultralytics installation failed${NC}"
+        echo ""
+        echo -e "${YELLOW}Manual installation options:${NC}"
+        echo "  1. Run manual install script:"
+        echo "     ./install_ultralytics_manual.sh"
+        echo ""
+        echo "  2. Install from source manually:"
+        echo "     pip3 install --no-binary :all: ultralytics --no-cache-dir"
+        echo ""
+        echo "  3. Install from GitHub:"
+        echo "     pip3 install git+https://github.com/ultralytics/ultralytics.git --no-cache-dir"
+        echo ""
+        echo "  4. Check error log:"
+        echo "     cat /tmp/ultra_install.log"
+        echo ""
+        read -p "Continue with rest of installation? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation stopped. Please install ultralytics manually:"
+            echo "  ./install_ultralytics_manual.sh"
+            exit 1
+        fi
+    fi
 fi
 
 echo ""
